@@ -1,46 +1,72 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <string.h>
 
-#Define PORT 8080
-#Define REQUESTS_MAX 50
-#Define MAX_MESSAGE_SIZE
+#define PORT 8080
+#define REQUESTS_MAX 50
+#define MAX_MESSAGE_SIZE 3000
 
 int main(int argc, char **argv){
 	
-	int server;
+	int server, client_socket;
 	struct sockaddr_in server_addr, client_addr;
+	long incoming;
 	socklen_t addr_size;
 
-	if( server = socket(AF_INET, SOCKET_STREAM, 1) == -1) {
+	if( (server = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		fprintf(stderr, "In server init");
 		return 0;
 	}
 
 	//Setting variables in sockaddr_in see man 7 ip
-	memset(&address, 0, sizeof(struct sockaddr_in));
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = htonl(INADDR_ANY);
-	address.sin_port = htons(PORT);
+	memset(&server_addr, 0, sizeof(struct sockaddr_in));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = htonl(2783139947);
+	server_addr.sin_port = htons(PORT);
 
 	//According to man bind(2)
 	addr_size = sizeof(struct sockaddr_in);
-	if(bind(server,(struct sockaddr *) &address, addr_size) == -1){
-		handle_error("In Bind");
+	if(bind(server,(struct sockaddr *) &server_addr, addr_size) == -1){
+		perror("In Bind");
+		exit(EXIT_FAILURE);
 	}
 	if(listen(server, REQUESTS_MAX) == -1){
-		handle_error("In Listen");
+		perror("In Listen");
+		exit(EXIT_FAILURE);
 	}
 	while(1){
-		printf("Waiting for Connection...\n\n");
-		if((client_socket = accept(server, (struct sockaddr *) &client_addr, addr_size) == -1)){
-			handle_error("In Accept");
+		printf("Waiting for Connection...\n");
+		if((client_socket = accept(server, (struct sockaddr *) &client_addr, &addr_size)) == -1){
+			perror("In Accept");
+			exit(EXIT_FAILURE);
 		}
 	       	printf("----------Connection Received----------\n");
-		char buffer[MAX_MESSAGE_SIZE] = '\0';
-		incoming = (client_socket, buffer, MAX_MESSAGE_SIZE);
+		char buffer[MAX_MESSAGE_SIZE] = {'\0'};
+		incoming = read(client_socket, buffer, MAX_MESSAGE_SIZE);
 		printf("%s\n", buffer);
 		//parse buffer and return appropriate information
+		printf("--------------End Buffer--------------\n");
 		close(client_socket);
 	}
 	return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
