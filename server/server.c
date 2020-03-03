@@ -28,7 +28,14 @@
 #define SOURCE_DEFAULT "/index.html"
 #define SOURCE_DEFAULT_SIZE 11
 #define GET_RESP_HEADER "HTTP/1.1 200 OK\nDate: %a, %d %b %G %T %Z\nServer: www.justinkozlowski.me\nContent-Type: text/html;charset=UTF-8\nContent-Length: "
-#define GET_RESP_HEAD_SIZE 150 //Accounts for characters added for the date repacements +2 for the newline characters after the content-Length
+#define GET_RESP_HEAD_SIZE 138 //Accounts for characters added for the date repacements +2 for the newline characters after the content-Length
+#define GET_RESP_PNG_HEADER "HTTP/1.1 200 OK\nDate: %a, %d %b %G %T %Z\nServer: www.justinkozlowski.me\nContent-Type: image/png\nContent-Length: " //14
+#define GET_RESP_PNG_HEAD_SIZE 124  //Accounts for characters added for the date repacements +2 for the newline characters after the content-Length
+
+//Fix below
+#define GET_RESP_CSS_HEADER "HTTP/1.1 200 OK\nDate: %a, %d %b %G %T %Z\nServer: www.justinkozlowski.me\nContent-Type: image/png\nContent-Length: " //13
+#define GET_RESP_CSS_HEAD_SIZE 136 //Accounts for characters added for the date repacements +2 for the newline characters after the content-Length
+
 #define NOT_FOUND_HEADER "HTTP/1.1 404 Not Found\nDate: %a, %d %b %G %T %Z\nServer: www.justinkozlowski.me\n"
 #define NOT_FOUND_HEAD_SIZE 100
 
@@ -81,7 +88,7 @@ int main(int argc, char **argv){
 			close(client_socket);
 		}
 		else{
-			printf("%s\n", buffer);
+			//printf("%s\n", buffer);
 			printf("--------------End Buffer--------------\n");
 			//parse buffer and return appropriate information
 			request(buffer, client_socket);
@@ -162,30 +169,80 @@ int get_request(char *buffer, int client_socket){
 	fseek(src_file, 0, SEEK_END);
 	long src_size = ftell(src_file);
 	void *body = calloc(src_size, 1);
+	printf("filesize:%li \n", src_size);
 	rewind(src_file);
 	if(fread(body, sizeof(char), src_size, src_file) < src_size){
 		perror("Did not read src properly -- GET\n");
 	}
 	printf("Read File\n%s\n", (char*)body);
 
+	//Decide file extension
+	char *extension = strtok(file, ".");
+	char *ext = strtok(NULL, ".");
+	while(ext != NULL){
+		extension = ext;
+		ext = strtok(NULL, ".");
+	}
+	printf("Extension of file:%s\n", extension);
+
+	//Decide header size
+	int size_of_header;
+	char *header;
+	if(strcmp(extension, "/") == 0){
+		header = calloc(1, GET_RESP_HEAD_SIZE);
+		size_of_header = GET_RESP_HEAD_SIZE;
+		strcpy(header, GET_RESP_HEADER);
+	}
+	if(strcmp(extension, "html") == 0){
+		header = calloc(1, GET_RESP_HEAD_SIZE);
+		size_of_header = GET_RESP_HEAD_SIZE;
+		strcpy(header, GET_RESP_HEADER);
+	}
+	if(strcmp(extension, "png") == 0){
+		header = calloc(1, GET_RESP_PNG_HEAD_SIZE);
+		size_of_header = GET_RESP_PNG_HEAD_SIZE;
+		strcpy(header, GET_RESP_PNG_HEADER);
+	
+	}
+	if(strcmp(extension, "css") == 0){
+		header = calloc(1, GET_RESP_HEAD_SIZE);
+		size_of_header = GET_RESP_CSS_HEAD_SIZE;
+		strcpy(header, GET_RESP_CSS_HEADER);
+	
+	}
+
+
 	//This section builds the GET response and catonates it together
 	char *content_len = calloc(16, sizeof(char));
-	sprintf(content_len, "%ld", src_size);
+	sprintf(content_len, "%ld", src_size-2);
 	int cont_len_size = strlen(content_len);
-	char *output = calloc((cont_len_size + GET_RESP_HEAD_SIZE + src_size), sizeof(char));
-	char *request_time = server_time(GET_RESP_HEADER, GET_RESP_HEAD_SIZE);
+	char *output = calloc((cont_len_size + size_of_header + src_size + 2), sizeof(char));
+	char *request_time = server_time(header, size_of_header);
+	free(header);
 	strcat(output, request_time);
 	free(request_time);
 	strcat(output, content_len);
 	free(content_len);
 	strcat(output, "\n");
 	strcat(output, "\n");
-	strcat(output, body);
+
+	//Copies body memory to output buffer
+	void *body_binary = output+cont_len_size+size_of_header + 1;
+	memcpy(body_binary, body, src_size-2);
+	//printf("Out:\n'%s'\n", (char*)body_binary);
+	printf("Body:'%s'\n", (char*)body);
 	free(body);
-	printf("Sending:\n\n%s\n", output);
+	for(int i = 0; i < size_of_header; i++){
+		//printf("%d", (char)(body + i));
+	}
+	printf("Sending:\n\n'%s'\n", output);
+
+
+	//printf("Size of Header: %i\nSize of content string: %i\nSize of content: %li\nTotal size: %li + 2\n", size_of_header, cont_len_size, src_size, size_of_header + cont_len_size + src_size);
+
 
 	//Send Response over socket
-	write(client_socket, output, strlen(output));
+	write(client_socket, output, cont_len_size + size_of_header + src_size + 2);
 	free(output);
 	return 200;
 }
@@ -210,7 +267,7 @@ FILE *get_file_src(char *filename, int size){
 	strcpy(file_loc, SOURCE);
        	strcat(file_loc, filename);
 	printf("Opening file %s\n", file_loc);
-	return fopen(file_loc, READ);
+	return fopen(file_loc, "rb");
 }
 
 //Creates server time in header string
