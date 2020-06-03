@@ -1,6 +1,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -12,7 +14,7 @@
 #define PORT 80
 #define REQUESTS_MAX 50
 #define MAX_MESSAGE_SIZE 3000
-#define IP_ADDRESS 2783139947
+#define IP_ADDRESS 1761112689
 
 #define GET "GET"
 #define POST "POST"
@@ -40,6 +42,7 @@
 #define NOT_FOUND_HEAD_SIZE 100
 
 //void parse(char *buffer);
+int set_nonblock(int client_socket, int flag);
 int request(char *buffer, int client_socket);
 int get_request(char *buffer, int client_socket);
 FILE *get_file_src(char *filename, int size);
@@ -80,15 +83,45 @@ int main(int argc, char **argv){
 			perror("In Accept");
 			exit(EXIT_FAILURE);
 		}
+		printf("FD of client socket: %i\n\n", client_socket);
+
+		//Set O_NONBLOCK to 1, ensure that read doesnt stall
+		printf("Odl Flags: %i\n", fcntl(client_socket, F_GETFD, 0));
+		int flag_set = set_nonblock(client_socket, 1);
+		if(flag_set == -1){
+			perror("In Flag Set");
+			exit(EXIT_FAILURE);
+		}
+
+		//Check if read will block on client_socket
+		int timeout = 100; //wait 100 miliseconds
+		struct pollfd fd;
+		fd.fd = client_socket;
+		fd.events = POLLIN;
+		int ready = poll(&fd, 1, timeout);
+
+		//Check if there is anything to read in the buffer
+		//int len = 0;
+		//ioctl(client_socket, FIONREAD, &len);
+		
 	       	printf("----------Connection Received----------\n");
 		char buffer[MAX_MESSAGE_SIZE] = {'\0'};
-		incoming = read(client_socket, buffer, MAX_MESSAGE_SIZE);
+
+		if(ready > 0){
+			incoming = read(client_socket, buffer, MAX_MESSAGE_SIZE);
+		}
+		else{
+			incoming = 0;
+		}
+
+		printf("Read %li Bytes\n", incoming);
 		if(!incoming){
 			printf("Empty Message\n");
+			request(buffer, client_socket);
 			close(client_socket);
 		}
 		else{
-			//printf("%s\n", buffer);
+			printf("---Request: %s\n", buffer);
 			printf("--------------End Buffer--------------\n");
 			//parse buffer and return appropriate information
 			request(buffer, client_socket);
@@ -101,6 +134,21 @@ int main(int argc, char **argv){
 //void parse(char *buffer){
 //	char *request = buffer;
 //}
+
+int set_nonblock(int client_socket, int flag){
+	int old_flags = fcntl(client_socket, F_GETFD, 0);
+	if (old_flags < 0){
+		return old_flags; 
+	}
+	if (flag != 0){
+		old_flags |= O_NONBLOCK;
+	}
+	else{
+		old_flags &= ~O_NONBLOCK;
+	}
+	printf("New flags: %i\n", old_flags);
+	return fcntl(client_socket, F_SETFD, old_flags);
+}
 
 int request(char *buffer, int client_socket){
 	char *request = buffer;
@@ -174,7 +222,9 @@ int get_request(char *buffer, int client_socket){
 	if(fread(body, sizeof(char), src_size, src_file) < src_size){
 		perror("Did not read src properly -- GET\n");
 	}
-	printf("Read File\n%s\n", (char*)body);
+
+	//Print contents of found file
+	//printf("Read File\n%s\n", (char*)body);
 
 	//Decide file extension
 	char *extension = strtok(file, ".");
@@ -230,12 +280,12 @@ int get_request(char *buffer, int client_socket){
 	void *body_binary = output+cont_len_size+size_of_header + 1;
 	memcpy(body_binary, body, src_size-2);
 	//printf("Out:\n'%s'\n", (char*)body_binary);
-	printf("Body:'%s'\n", (char*)body);
+	//printf("Body:'%s'\n", (char*)body);
 	free(body);
 	for(int i = 0; i < size_of_header; i++){
 		//printf("%d", (char)(body + i));
 	}
-	printf("Sending:\n\n'%s'\n", output);
+	//printf("Sending:\n\n'%s'\n", output);
 
 
 	//printf("Size of Header: %i\nSize of content string: %i\nSize of content: %li\nTotal size: %li + 2\n", size_of_header, cont_len_size, src_size, size_of_header + cont_len_size + src_size);
