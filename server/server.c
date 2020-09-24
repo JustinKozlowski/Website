@@ -38,7 +38,7 @@
 #define GET_RESP_CSS_HEAD_SIZE 123 //Accounts for characters added for the date repacements +2 for the newline characters after the content-Length
 
 #define GET_RESP_JS_HEADER "HTTP/1.1 200 OK\nDate: %a, %d %b %G %T %Z\nServer: www.justinkozlowski.me\nContent-Type: text/javascript\nContent-Length: " //13
-#define GET_RESP_JE_HEAD_SIZE 130
+#define GET_RESP_JS_HEAD_SIZE 130
 
 
 #define NOT_FOUND_HEADER "HTTP/1.1 404 Not Found\nDate: %a, %d %b %G %T %Z\nServer: www.justinkozlowski.me\n"
@@ -284,6 +284,7 @@ int get_request(char *buffer, int client_socket){
 	free(content_len);
 	strcat(output, "\n");
 	strcat(output, "\n");
+	printf("Header Made\n");
 
 	//Copies body memory to output buffer
 	void *body_binary = output+cont_len_size+size_of_header + 1;
@@ -294,6 +295,7 @@ int get_request(char *buffer, int client_socket){
 	for(int i = 0; i < size_of_header; i++){
 		//printf("%d", (char)(body + i));
 	}
+	printf("Sending\n");
 	//printf("Sending:\n\n'%s'\n", output);
 
 
